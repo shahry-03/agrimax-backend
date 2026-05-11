@@ -1,0 +1,3 @@
+com\agrimax\AgriMaxApplication.class
+com\agrimax\config\SecurityConfig.class
+com\agrimax\config\JwtAuthFilter.class

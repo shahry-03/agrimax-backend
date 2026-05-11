@@ -1,0 +1,11 @@
+com\agrimax\marketplace\entity\Deal$DealBuilder.class
+com\agrimax\marketplace\entity\Bid$BidBuilder.class
+com\agrimax\marketplace\entity\Bid.class
+com\agrimax\marketplace\entity\Deal.class
+com\agrimax\marketplace\entity\SellPost.class
+com\agrimax\marketplace\repository\SellPostRepository.class
+com\agrimax\marketplace\service\SellPostService.class
+com\agrimax\marketplace\controller\SellPostController.class
+com\agrimax\marketplace\entity\SellPost$SellPostBuilder.class
+com\agrimax\marketplace\handler\CreateSellPostHandler.class
+com\agrimax\marketplace\repository\BidRepository.class

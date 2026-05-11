@@ -1,0 +1,5 @@
+com\agrimax\ai\service\SpeechToTextService.class
+com\agrimax\ai\service\IntentDetectionService.class
+com\agrimax\ai\dto\VoiceCommandRequest.class
+com\agrimax\ai\service\CommandRouterService.class
+com\agrimax\ai\controller\VoiceController.class

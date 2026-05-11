@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* ── AgriMax Design System ── */
+:root {
+  --primary: #16a34a;
+  --primary-dark: #15803d;
+  --secondary: #f59e0b;
+  --bg-dark: #0f172a;
+  --bg-card: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent-glow: rgba(22, 163, 74, 0.3);
+}
+
+@font-face {
+  font-family: 'Noto Nastaliq';
+  src: url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu&display=swap');
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+
+/* ── Mic Pulse Animation ── */
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 0 20px rgba(22, 163, 74, 0); }
+}
+
+@keyframes listening-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-up { animation: fade-up 0.5s ease-out forwards; }
+.animate-slide-in { animation: slide-in 0.4s ease-out forwards; }
+.animate-mic-pulse { animation: mic-pulse 1.5s ease-in-out infinite; }
+
+.listening-bar {
+  width: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  animation: listening-wave 0.8s ease-in-out infinite;
+}
+
+/* ── Glass Card ── */
+.glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 16px;
+}
+
+/* ── Big Farmer Button ── */
+.farmer-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 16px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 100px;
+}
+
+.farmer-btn:hover {
+  background: rgba(22, 163, 74, 0.15);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.farmer-btn:active {
+  transform: scale(0.97);
+}
+
+.farmer-btn .icon {
+  font-size: 32px;
+}

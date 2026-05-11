@@ -1,0 +1,5 @@
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\controller\VoiceController.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\dto\VoiceCommandRequest.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\CommandRouterService.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\IntentDetectionService.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\SpeechToTextService.java

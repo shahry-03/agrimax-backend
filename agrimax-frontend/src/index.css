@@ -1,110 +1,195 @@
+/* ── Google Fonts: Inter (UI) + Noto Nastaliq Urdu (Urdu text) ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
 @import "tailwindcss";
 
-/* ── AgriMax Design System ── */
+/* ── AgriMax Design System Tokens ── */
 :root {
-  --primary: #16a34a;
-  --primary-dark: #15803d;
-  --secondary: #f59e0b;
-  --bg-dark: #0f172a;
-  --bg-card: #1e293b;
-  --text-primary: #f8fafc;
+  --primary:        #16a34a;
+  --primary-dark:   #15803d;
+  --primary-light:  #22c55e;
+  --secondary:      #f59e0b;
+  --bg-dark:        #0f172a;
+  --bg-card:        #1e293b;
+  --text-primary:   #f8fafc;
   --text-secondary: #94a3b8;
-  --accent-glow: rgba(22, 163, 74, 0.3);
+  --accent-glow:    rgba(22, 163, 74, 0.35);
+  --border-subtle:  rgba(148, 163, 184, 0.1);
 }
 
-@font-face {
-  font-family: 'Noto Nastaliq';
-  src: url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu&display=swap');
-}
-
-* {
+/* ── Reset ── */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* ── Base body ── */
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: var(--bg-dark);
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Urdu text utility — uses Noto Nastaliq Urdu ── */
+.urdu-text {
+  font-family: 'Noto Nastaliq Urdu', 'Noto Nastaliq', 'Arial Unicode MS', serif;
+  line-height: 1.8;
+  direction: rtl;
+  text-align: right;
 }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
 
-/* ── Mic Pulse Animation ── */
+/* ══════════════════════════════════════
+   ANIMATIONS
+   ══════════════════════════════════════ */
+
 @keyframes mic-pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
-  50% { box-shadow: 0 0 0 20px rgba(22, 163, 74, 0); }
+  50%       { box-shadow: 0 0 0 20px rgba(22, 163, 74, 0); }
 }
 
 @keyframes listening-wave {
-  0%, 100% { transform: scaleY(0.3); }
-  50% { transform: scaleY(1); }
+  0%, 100% { transform: scaleY(0.25); }
+  50%       { transform: scaleY(1); }
 }
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fade-up { animation: fade-up 0.5s ease-out forwards; }
-.animate-slide-in { animation: slide-in 0.4s ease-out forwards; }
+@keyframes ripple {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-fade-up  { animation: fade-up 0.45s ease-out both; }
+.animate-slide-in { animation: slide-in 0.35s ease-out both; }
 .animate-mic-pulse { animation: mic-pulse 1.5s ease-in-out infinite; }
 
+/* ── Listening bars ── */
 .listening-bar {
   width: 4px;
-  background: var(--primary);
-  border-radius: 2px;
-  animation: listening-wave 0.8s ease-in-out infinite;
+  min-height: 8px;
+  max-height: 100%;
+  background: linear-gradient(to top, var(--primary), var(--primary-light));
+  border-radius: 3px;
+  animation: listening-wave 0.75s ease-in-out infinite;
 }
+
+/* Staggered colors for visual interest */
+.listening-bar:nth-child(odd)  { background: linear-gradient(to top, #16a34a, #4ade80); }
+.listening-bar:nth-child(even) { background: linear-gradient(to top, #059669, #34d399); }
+
+/* ══════════════════════════════════════
+   COMPONENTS
+   ══════════════════════════════════════ */
 
 /* ── Glass Card ── */
 .glass-card {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(30, 41, 59, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
 }
 
-/* ── Big Farmer Button ── */
+/* ── Big Farmer Button (quick actions grid) ── */
 .farmer-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 20px;
+  padding: 20px 12px;
   border-radius: 16px;
   background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  min-height: 100px;
+  transition: all 0.25s ease;
+  min-height: 110px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.farmer-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: radial-gradient(circle at center, rgba(22,163,74,0.1) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
 .farmer-btn:hover {
-  background: rgba(22, 163, 74, 0.15);
-  border-color: var(--primary);
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.4);
   transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(22, 163, 74, 0.15);
 }
+
+.farmer-btn:hover::after { opacity: 1; }
 
 .farmer-btn:active {
   transform: scale(0.97);
+  box-shadow: none;
 }
 
 .farmer-btn .icon {
-  font-size: 32px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+/* ── Skeleton loading ── */
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(51,65,85,0.6) 25%,
+    rgba(71,85,105,0.6) 50%,
+    rgba(51,65,85,0.6) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Focus ring improvement ── */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Mobile optimizations ── */
+@media (max-width: 640px) {
+  .glass-card { border-radius: 12px; }
+  .farmer-btn { min-height: 95px; padding: 16px 8px; }
+  .farmer-btn .icon { font-size: 28px; }
+}
+
+/* ── Prevent zoom on iOS input focus ── */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  input, select, textarea {
+    font-size: 16px;
+  }
 }

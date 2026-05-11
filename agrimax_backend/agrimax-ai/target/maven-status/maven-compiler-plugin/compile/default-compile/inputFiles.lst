@@ -1,5 +1,11 @@
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\cache\GeminiResponseCache.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\controller\AiController.java
 D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\controller\VoiceController.java
 D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\dto\VoiceCommandRequest.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\handler\UnknownIntentHandler.java
 D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\CommandRouterService.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\GeminiChatService.java
 D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\IntentDetectionService.java
 D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\service\SpeechToTextService.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\session\ConversationSession.java
+D:\AgriMax\agrimax_backend\agrimax-ai\src\main\java\com\agrimax\ai\session\ConversationSessionManager.java

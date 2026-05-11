@@ -5,7 +5,6 @@ spring:
   application:
     name: agrimax-backend
 
-
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -31,6 +30,16 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  # Async task executor (for @Async event listeners and @Scheduled cleanup)
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+    scheduling:
+      pool:
+        size: 2
+
 # ── AgriMax Custom Configuration ──
 agrimax:
   jwt:
@@ -47,3 +56,7 @@ agrimax:
   voice:
     # Mock mode - accepts text transcripts directly instead of audio
     mock-stt: true
+
+  cors:
+    # Comma-separated list of allowed origins — override in prod via env var
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173}

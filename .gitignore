@@ -1,9 +1,29 @@
-# Environment Variables
+# ── Environment Variables (NEVER commit these) ──
 .env
+.env.local
+.env.*.local
+*.env
 
-# IntelliJ IDEA files
+# ── IntelliJ IDEA ──
 .idea/
 *.iml
+*.iws
+*.ipr
 
-# Compiled class files
+# ── Java Build Artifacts ──
 target/
+*.class
+*.jar
+
+# ── Node / Frontend ──
+node_modules/
+dist/
+.vite/
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+
+# ── Logs ──
+*.log
+logs/

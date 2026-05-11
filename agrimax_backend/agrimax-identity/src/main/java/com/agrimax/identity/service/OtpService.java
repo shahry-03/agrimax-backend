@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Random;
+import java.security.SecureRandom;
 
 /**
  * Mock OTP service — logs OTP to console instead of sending SMS.
@@ -22,7 +22,7 @@ import java.util.Random;
 public class OtpService {
 
     private final OtpTokenRepository otpTokenRepository;
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
 
     @Transactional
     public OtpToken generateAndSendOtp(User user) {

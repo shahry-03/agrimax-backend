@@ -5,10 +5,11 @@ spring:
   application:
     name: agrimax-backend
 
+
   datasource:
-    url: jdbc:postgresql://ep-sparkling-river-aozl1jo3.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_ebl10fyivGxR
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -33,13 +34,13 @@ spring:
 # ── AgriMax Custom Configuration ──
 agrimax:
   jwt:
-    secret: ${JWT_SECRET:YWdyaW1heC1zdXBlci1zZWNyZXQta2V5LXRoYXQtaXMtYXQtbGVhc3QtMjU2LWJpdHMtbG9uZy1mb3ItaHMyNTY=}
+    secret: ${JWT_SECRET}
     access-token-expiry-ms: 86400000     # 24 hours
     refresh-token-expiry-ms: 604800000   # 7 days
 
   ai:
     gemini:
-      api-key: ${GEMINI_API_KEY:AIzaSyCkNcczFj6WUa6H7ZPkHBo9acAig1mgPRY}
+      api-key: ${GEMINI_API_KEY}
       model: gemini-2.0-flash
       base-url: https://generativelanguage.googleapis.com/v1beta
 

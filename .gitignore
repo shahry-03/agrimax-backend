@@ -1,0 +1,9 @@
+# Environment Variables
+.env
+
+# IntelliJ IDEA files
+.idea/
+*.iml
+
+# Compiled class files
+target/

@@ -1,4 +1,4 @@
-package com.agrimax.ai.session;
+package com.agrimax.common.session;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

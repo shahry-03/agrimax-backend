@@ -1,15 +1,18 @@
-package com.agrimax.ai.session;
+package com.agrimax.common.session;
 
 import lombok.Data;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Holds conversational history for a single user session.
  * Stores the last MAX_TURNS (user, assistant) pairs.
  * Sessions expire after EXPIRY_MINUTES of inactivity.
+ * Also holds temporary context (e.g., phone number during OTP flow).
  */
 @Data
 public class ConversationSession {
@@ -19,6 +22,7 @@ public class ConversationSession {
 
     private final String userId; // "anonymous" for unauthenticated
     private final List<Turn> history = new ArrayList<>();
+    private final Map<String, Object> context = new ConcurrentHashMap<>();
     private Instant lastActivity = Instant.now();
 
     public void addUserTurn(String text) {
@@ -38,19 +42,19 @@ public class ConversationSession {
         return Instant.now().isAfter(lastActivity.plusSeconds(EXPIRY_MINUTES * 60));
     }
 
-    /** Builds Gemini-format contents array from history (excludes last user turn — added separately). */
+    /** Builds Gemini-format contents array from history. */
     public List<Object> buildContents(String currentUserText) {
         List<Object> contents = new ArrayList<>();
         for (Turn turn : history) {
-            contents.add(java.util.Map.of(
+            contents.add(Map.of(
                     "role", turn.role(),
-                    "parts", List.of(java.util.Map.of("text", turn.text()))
+                    "parts", List.of(Map.of("text", turn.text()))
             ));
         }
         // Add current user message
-        contents.add(java.util.Map.of(
+        contents.add(Map.of(
                 "role", "user",
-                "parts", List.of(java.util.Map.of("text", currentUserText))
+                "parts", List.of(Map.of("text", currentUserText))
         ));
         return contents;
     }

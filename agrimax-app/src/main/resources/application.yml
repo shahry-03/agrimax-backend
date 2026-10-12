@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: agrimax-backend
+  config:
+    import: optional:file:.env[.properties]    # Yeh nayi line add karo
 
   datasource:
     url: ${DB_URL}
@@ -50,7 +52,7 @@ agrimax:
   ai:
     gemini:
       api-key: ${GEMINI_API_KEY}
-      model: gemini-2.0-flash
+      model: gemini-3.8-flash
       base-url: https://generativelanguage.googleapis.com/v1beta
 
   voice:

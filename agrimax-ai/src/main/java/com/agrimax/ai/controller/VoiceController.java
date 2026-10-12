@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -52,20 +53,37 @@ public class VoiceController {
         String transcript = sttService.transcribe(request.transcript());
 
         // Step 2: Determine session ID for conversation memory
-        // Authenticated users get their userId; anonymous users get "anonymous"
-        String sessionId = principal != null ? principal.getName() : "anonymous";
-        UUID userId = principal != null ? UUID.fromString(principal.getName()) : null;
+        // Logged-in users get their userId as session; anonymous users get frontend-generated sessionId
+        String sessionId;
+        UUID userId;
+        if (principal != null) {
+            sessionId = principal.getName();
+            userId = UUID.fromString(principal.getName());
+        } else {
+            sessionId = (request.sessionId() != null && !request.sessionId().isBlank())
+                    ? request.sessionId()
+                    : "anonymous";
+            userId = null;
+        }
 
         // Step 3: AI Intent Detection via Gemini (with caching + session memory)
         VoiceIntent intent = intentService.detectIntent(transcript, sessionId);
-        log.info("Voice command processed — intent: {} | confidence: {} | lang: {} | user: {}",
+        log.info("Voice command processed — intent: {} | confidence: {} | lang: {} | session: {}",
                 intent.intent(), intent.confidence(), intent.language(), sessionId);
 
-        // Step 4: Route to appropriate module handler
-        CommandResult result = routerService.route(intent, userId);
+        // Step 4: Inject sessionId into parameters so handlers can access session context
+        // (Needed for LOGIN → VERIFY_OTP flow where phone number must be remembered)
+        Map<String, Object> params = new HashMap<>(intent.parameters() != null ? intent.parameters() : Map.of());
+        params.put("sessionId", sessionId);
+        VoiceIntent enrichedIntent = new VoiceIntent(
+                intent.intent(), params, intent.language(), intent.confidence()
+        );
 
-        // Step 5: Build comprehensive bilingual response
-        Map<String, Object> responseData = new java.util.HashMap<>();
+        // Step 5: Route to appropriate module handler
+        CommandResult result = routerService.route(enrichedIntent, userId);
+
+        // Step 6: Build comprehensive bilingual response
+        Map<String, Object> responseData = new HashMap<>();
         responseData.put("intent", intent.intent());
         responseData.put("confidence", intent.confidence());
         responseData.put("language", intent.language());

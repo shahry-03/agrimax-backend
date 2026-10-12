@@ -1,8 +1,8 @@
 package com.agrimax.ai.service;
 
 import com.agrimax.ai.cache.GeminiResponseCache;
-import com.agrimax.ai.session.ConversationSession;
-import com.agrimax.ai.session.ConversationSessionManager;
+import com.agrimax.common.session.ConversationSession;
+import com.agrimax.common.session.ConversationSessionManager;
 import com.agrimax.common.voice.VoiceIntent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,14 +18,6 @@ import java.util.regex.Pattern;
 
 /**
  * Calls Gemini API to detect intent from natural language text (Urdu/English).
- *
- * <p>Improvements over v1:</p>
- * <ul>
- *   <li>Conversation memory — sends session history to Gemini for contextual responses</li>
- *   <li>Response caching — identical transcripts skip Gemini API call</li>
- *   <li>Richer Urdu vocabulary in system prompt</li>
- *   <li>Falls back to smart keyword-based parser if Gemini is unavailable</li>
- * </ul>
  */
 @Slf4j
 @Service
@@ -44,11 +36,12 @@ public class IntentDetectionService {
             
             Given a farmer's spoken text (Urdu Roman, Urdu script, or English), extract:
             1. intent — MUST be exactly one of:
-               LOGIN, CREATE_SELL_POST, GET_CROP_PRICE, VIEW_PAYMENTS,
+               LOGIN, VERIFY_OTP, CREATE_SELL_POST, GET_CROP_PRICE, VIEW_PAYMENTS,
                VIEW_WALLET, PLACE_BID, CHECK_ORDER_STATUS, GET_RECOMMENDATION,
                UPDATE_PROFILE, VIEW_NOTIFICATIONS, UNKNOWN
             2. parameters — JSON object with relevant fields:
                - LOGIN: {phone: "03001234567"}
+               - VERIFY_OTP: {otp: "1234"}
                - CREATE_SELL_POST: {crop: "wheat", quantity: 50, unit: "kg", price: 3000}
                - GET_CROP_PRICE: {crop: "wheat"}
                - VIEW_WALLET/VIEW_PAYMENTS: {}
@@ -65,10 +58,10 @@ public class IntentDetectionService {
             
             === Urdu Commands (Roman) ===
             bechna=sell, khareedna=buy, keemat/qeemat/bhav/daam/rate=price,
-            login/daakhil/lagan=login, wallet/batta=wallet,
-            paisa/paisay/balance=money/balance, transaction/len-den=transaction,
-            dikhao/batao/check=show/tell/check, meri fasal=my crop,
-            aaj/kal=today/tomorrow, market/mandi=market
+            login/daakhil/lagan=login, otp/code/pin=otp,
+            wallet/batta=wallet, paisa/paisay/balance=money/balance,
+            transaction/len-den=transaction, dikhao/batao/check=show/tell/check,
+            meri fasal=my crop, aaj/kal=today/tomorrow, market/mandi=market
             
             === Response Rules ===
             - ALWAYS respond ONLY with valid JSON. No markdown, no explanations.
@@ -101,6 +94,8 @@ public class IntentDetectionService {
 
     private static final Pattern PHONE_PATTERN = Pattern.compile("(03\\d{9})");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
+    // Naya Pattern OTP ke liye (4 se 6 digits)
+    private static final Pattern OTP_PATTERN = Pattern.compile("\\b(\\d{4,6})\\b");
 
     public IntentDetectionService(
             @Value("${agrimax.ai.gemini.api-key}") String apiKey,
@@ -119,16 +114,9 @@ public class IntentDetectionService {
                 .build();
     }
 
-    /**
-     * Detects intent from transcript, using cache and conversation history.
-     *
-     * @param transcript The user's spoken text
-     * @param sessionId  User ID or "anonymous" for unauthenticated users
-     */
     public VoiceIntent detectIntent(String transcript, String sessionId) {
         log.info("Detecting intent for: \"{}\" (session: {})", transcript, sessionId);
 
-        // 1. Check cache first (only for simple/stateless queries)
         String cacheKey = transcript.trim().toLowerCase();
         VoiceIntent cached = cache.get(cacheKey);
         if (cached != null) {
@@ -136,11 +124,9 @@ public class IntentDetectionService {
             return cached;
         }
 
-        // 2. Get conversation session for memory
         ConversationSession session = sessionManager.getOrCreate(sessionId);
 
         try {
-            // 3. Build request with conversation history
             Map<String, Object> requestBody = buildGeminiRequest(transcript, session);
 
             String responseJson = restClient.post()
@@ -154,11 +140,9 @@ public class IntentDetectionService {
             log.info("✅ Gemini detected: {} (confidence: {}, lang: {})",
                     intent.intent(), intent.confidence(), intent.language());
 
-            // 4. Update conversation history
             session.addUserTurn(transcript);
             session.addAssistantTurn(intent.intent() + ": " + intent.parameters());
 
-            // 5. Cache result (only for high-confidence, parameter-independent intents)
             if (intent.confidence() >= 0.8 && isCacheable(intent)) {
                 cache.put(cacheKey, intent);
             }
@@ -171,12 +155,9 @@ public class IntentDetectionService {
         }
     }
 
-    /** Legacy overload for backward compatibility — uses "anonymous" session. */
     public VoiceIntent detectIntent(String transcript) {
         return detectIntent(transcript, "anonymous");
     }
-
-    // ── Request Building ──
 
     private Map<String, Object> buildGeminiRequest(String transcript, ConversationSession session) {
         return Map.of(
@@ -185,8 +166,8 @@ public class IntentDetectionService {
                 ),
                 "contents", session.buildContents(transcript),
                 "generationConfig", Map.of(
-                        "temperature", 0.05,       // Very low for consistent intent detection
-                        "maxOutputTokens", 256,    // Intent JSON is small
+                        "temperature", 0.05,
+                        "maxOutputTokens", 256,
                         "responseMimeType", "application/json"
                 )
         );
@@ -197,8 +178,16 @@ public class IntentDetectionService {
         JsonNode root = objectMapper.readTree(responseJson);
         String content = root.at("/candidates/0/content/parts/0/text").asText();
 
-        // Strip markdown code blocks if Gemini wraps in ```json ... ```
         content = content.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
+
+        // FIX: Remove trailing dots in numeric values (e.g., "0." → "0.0", "0.85." → "0.85")
+        content = content.replaceAll("(\\d)\\.([,}\\]])", "$1.0$2");  // "0." → "0.0"
+        content = content.replaceAll("(\\d+\\.\\d+)\\.", "$1");       // "0.85." → "0.85"
+        
+        // FIX: Handle leading dot numbers (e.g., ".5" → "0.5")
+        content = content.replaceAll(":(\\.\\d)", ":0$1");
+
+        log.debug("Cleaned Gemini response: {}", content);
 
         JsonNode intentNode = objectMapper.readTree(content);
 
@@ -216,6 +205,7 @@ public class IntentDetectionService {
     private boolean isCacheable(VoiceIntent intent) {
         return switch (intent.intent()) {
             case "GET_CROP_PRICE", "GET_RECOMMENDATION" -> true;
+            // LOGIN aur VERIFY_OTP user-specific hain, inhe cache NAHI karna
             default -> false;
         };
     }
@@ -227,6 +217,7 @@ public class IntentDetectionService {
     private VoiceIntent smartFallback(String transcript) {
         String lower = transcript.toLowerCase().trim();
 
+        // 1. LOGIN Intent
         if (matches(lower, "login", "daakhil", "log in", "sign in", "lagan")) {
             Map<String, Object> params = new HashMap<>();
             Matcher phoneMatcher = PHONE_PATTERN.matcher(transcript);
@@ -234,6 +225,17 @@ public class IntentDetectionService {
             return new VoiceIntent("LOGIN", params, detectLang(lower), 0.85);
         }
 
+        // 2. VERIFY_OTP Intent (Naya Add Kiya Gaya)
+        if (matches(lower, "otp", "code", "pin", "otp batao", "otp mila", "verification")) {
+            Map<String, Object> params = new HashMap<>();
+            Matcher otpMatcher = OTP_PATTERN.matcher(transcript);
+            if (otpMatcher.find()) {
+                params.put("otp", otpMatcher.group(1));
+            }
+            return new VoiceIntent("VERIFY_OTP", params, detectLang(lower), 0.85);
+        }
+
+        // 3. CREATE_SELL_POST Intent
         if (matches(lower, "bech", "sell", "fasal bech", "list", "bechna")) {
             Map<String, Object> params = new HashMap<>();
             extractCrop(lower, params);
@@ -241,20 +243,24 @@ public class IntentDetectionService {
             return new VoiceIntent("CREATE_SELL_POST", params, detectLang(lower), 0.80);
         }
 
+        // 4. GET_CROP_PRICE Intent
         if (matches(lower, "price", "keemat", "qeemat", "rate", "bhav", "daam", "kimat", "kitni hai")) {
             Map<String, Object> params = new HashMap<>();
             extractCrop(lower, params);
             return new VoiceIntent("GET_CROP_PRICE", params, detectLang(lower), 0.85);
         }
 
+        // 5. VIEW_WALLET Intent
         if (matches(lower, "wallet", "balance", "paisa kitna", "paisay", "batta", "paisa dikhao")) {
             return new VoiceIntent("VIEW_WALLET", Map.of(), detectLang(lower), 0.85);
         }
 
+        // 6. VIEW_PAYMENTS Intent
         if (matches(lower, "payment", "transaction", "len den", "lein dein", "history", "transactions")) {
             return new VoiceIntent("VIEW_PAYMENTS", Map.of(), detectLang(lower), 0.85);
         }
 
+        // 7. GET_RECOMMENDATION Intent
         if (matches(lower, "recommend", "advice", "salah", "mashwara", "kya karoon", "kab bechoon")) {
             Map<String, Object> params = new HashMap<>();
             extractCrop(lower, params);
@@ -306,7 +312,7 @@ public class IntentDetectionService {
     private String detectLang(String text) {
         if (matches(text, "mujhe", "meri", "karo", "hai", "kya", "bhai", "bech",
                 "dikhao", "batao", "keemat", "fasal", "aaj", "mera", "kal",
-                "chahiye", "hona", "kaisa", "kitna", "kahan")) {
+                "chahiye", "hona", "kaisa", "kitna", "kahan", "otp", "batao")) {
             return "ur";
         }
         return "en";

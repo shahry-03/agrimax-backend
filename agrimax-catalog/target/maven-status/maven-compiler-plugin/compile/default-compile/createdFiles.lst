@@ -1,9 +1,0 @@
-com\agrimax\catalog\entity\Crop.class
-com\agrimax\catalog\entity\CropPrice$CropPriceBuilder.class
-com\agrimax\catalog\repository\CropRepository.class
-com\agrimax\catalog\repository\CropPriceRepository.class
-com\agrimax\catalog\controller\CropController.class
-com\agrimax\catalog\handler\GetCropPriceHandler.class
-com\agrimax\catalog\entity\Crop$CropBuilder.class
-com\agrimax\catalog\entity\CropPrice.class
-com\agrimax\catalog\service\CropService.class

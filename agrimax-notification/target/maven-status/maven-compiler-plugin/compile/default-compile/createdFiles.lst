@@ -1,5 +1,0 @@
-com\agrimax\notification\entity\Notification$NotificationBuilder.class
-com\agrimax\notification\repository\NotificationRepository.class
-com\agrimax\notification\service\NotificationService.class
-com\agrimax\notification\listener\NotificationEventListener.class
-com\agrimax\notification\entity\Notification.class

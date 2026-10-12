@@ -15,6 +15,7 @@ target/
 *.class
 *.jar
 
+
 # ── Node / Frontend ──
 node_modules/
 dist/

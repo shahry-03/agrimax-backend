@@ -53,4 +53,15 @@ public class WalletService {
                 .description(description).referenceId(refId).referenceType(refType)
                 .build());
     }
+
+    @Transactional
+    public Wallet getOrCreateWallet(UUID userId) {
+        return walletRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    log.warn("Wallet not found for user {}, auto-creating", userId);
+                    return walletRepository.save(
+                            Wallet.builder().userId(userId).build()
+                    );
+                });
+    }
 }

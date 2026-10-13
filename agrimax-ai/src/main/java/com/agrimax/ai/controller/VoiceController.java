@@ -1,6 +1,6 @@
 package com.agrimax.ai.controller;
 
-import com.agrimax.ai.dto.VoiceCommandRequest;
+import com.agrimax.ai.dto.request.VoiceCommandRequest;
 import com.agrimax.ai.service.CommandRouterService;
 import com.agrimax.ai.service.IntentDetectionService;
 import com.agrimax.ai.service.SpeechToTextService;

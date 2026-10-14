@@ -61,6 +61,15 @@ agrimax:
       api-key: ${GEMINI_API_KEY}
       model: gemini-3.6-flash
       base-url: https://generativelanguage.googleapis.com/v1beta
+      enabled: true
+
+    # ── Groq LLM (Text generation — for hybrid fallback) ──
+    groq:
+      llm:
+        enabled: true
+        api-key: ${GROQ_API_KEY}
+        base-url: https://api.groq.com/openai/v1
+        model: qwen/qwen3.8-27b   # Best open model on Groq
 
     # ── Whisper Speech-to-Text (Multi-Provider) ──
     whisper:
@@ -70,7 +79,7 @@ agrimax:
         enabled: true
         api-key: ${GROQ_API_KEY}
         base-url: https://api.groq.com/openai/v1
-        model: whisper-large-v3
+        model: whisper-large-v3-turbo
 
       openai:
         enabled: false              # Turn on if you have OpenAI key

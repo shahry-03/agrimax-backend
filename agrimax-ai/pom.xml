@@ -11,9 +11,18 @@
     <artifactId>agrimax-ai</artifactId>
     <name>AgriMax AI</name>
     <dependencies>
+        <!-- Internal modules -->
         <dependency>
             <groupId>com.agrimax</groupId>
             <artifactId>agrimax-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.agrimax</groupId>
+            <artifactId>agrimax-catalog</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.agrimax</groupId>
+            <artifactId>agrimax-marketplace</artifactId>
         </dependency>
     </dependencies>
 </project>

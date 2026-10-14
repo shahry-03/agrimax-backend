@@ -1,29 +1,28 @@
 package com.agrimax.ai.service;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import com.agrimax.ai.llm.HybridLlmService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 /**
- * General-purpose Gemini chat service for non-intent uses:
- * - Help/fallback responses for UNKNOWN intent
- * - Daily agricultural tips for the home page
+ * High-level AI chat service — delegates to HybridLlmService (Gemini + Groq).
+ * Handles:
+ * - Help responses for UNKNOWN intent
+ * - Daily agricultural tips
+ * - Personalized farming advice
  */
 @Slf4j
 @Service
 public class GeminiChatService {
 
-    private final RestClient restClient;
+    private final HybridLlmService llm;
     private final ObjectMapper objectMapper;
-    private final String model;
 
     private static final String HELP_SYSTEM_PROMPT = """
             You are AgriMax AI, a helpful agricultural assistant for Pakistani farmers.
@@ -54,98 +53,33 @@ public class GeminiChatService {
             }
             """.formatted(LocalDate.now());
 
-    public GeminiChatService(
-            @Value("${agrimax.ai.gemini.api-key}") String apiKey,
-            @Value("${agrimax.ai.gemini.base-url}") String baseUrl,
-            @Value("${agrimax.ai.gemini.model}") String model,
-            ObjectMapper objectMapper) {
-        this.model = model;
+    public GeminiChatService(HybridLlmService llm, ObjectMapper objectMapper) {
+        this.llm = llm;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
-                .defaultHeader("x-goog-api-key", apiKey)
-                .build();
     }
 
-    /**
-     * Returns a help/fallback response for text that didn't match any intent.
-     *
-     * @return String[2] — [0] = Urdu, [1] = English
-     */
+    // ══════════════════════════════════════════════════════════
+    // PUBLIC API (signatures unchanged — handlers not affected)
+    // ══════════════════════════════════════════════════════════
+
     public String[] getHelpResponse(String userText, String sessionId) {
-        log.info("Getting Gemini help response for: \"{}\"", userText);
-
+        log.info("Getting help response for: \"{}\"", userText);
         try {
-            Map<String, Object> requestBody = Map.of(
-                    "system_instruction", Map.of(
-                            "parts", List.of(Map.of("text", HELP_SYSTEM_PROMPT))
-                    ),
-                    "contents", List.of(Map.of(
-                            "parts", List.of(Map.of("text", userText))
-                    )),
-                    "generationConfig", Map.of(
-                            "temperature", 0.7,
-                            "maxOutputTokens", 150,
-                            "responseMimeType", "application/json"
-                    )
-            );
-
-            String responseJson = restClient.post()
-                    .uri("/models/{model}:generateContent", model)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
-
-            JsonNode root = objectMapper.readTree(responseJson);
-            String content = root.at("/candidates/0/content/parts/0/text").asText();
-            content = content.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
-
+            String content = llm.chat(HELP_SYSTEM_PROMPT, userText, 0.7, 150);
             JsonNode node = objectMapper.readTree(content);
             String urdu = node.has("urdu") ? node.get("urdu").asText() : getFallbackUrdu();
             String english = node.has("english") ? node.get("english").asText() : getFallbackEnglish();
-
             return new String[]{urdu, english};
-
         } catch (Exception e) {
-            log.warn("Gemini help response failed: {}", e.getMessage());
+            log.warn("Help response failed ({}), using template", e.getMessage());
             return new String[]{getFallbackUrdu(), getFallbackEnglish()};
         }
     }
 
-    /**
-     * Generates today's agricultural tip for the home page.
-     * Returns a map with titleUr, titleEn, tipUr, tipEn, category.
-     */
     public Map<String, String> getDailyTip() {
-        log.info("Generating daily agricultural tip from Gemini");
-
+        log.info("Generating daily tip via hybrid LLM");
         try {
-            Map<String, Object> requestBody = Map.of(
-                    "system_instruction", Map.of(
-                            "parts", List.of(Map.of("text", TIP_SYSTEM_PROMPT))
-                    ),
-                    "contents", List.of(Map.of(
-                            "parts", List.of(Map.of("text", "Generate today's farming tip"))
-                    )),
-                    "generationConfig", Map.of(
-                            "temperature", 0.8,
-                            "maxOutputTokens", 300,
-                            "responseMimeType", "application/json"
-                    )
-            );
-
-            String responseJson = restClient.post()
-                    .uri("/models/{model}:generateContent", model)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
-
-            JsonNode root = objectMapper.readTree(responseJson);
-            String content = root.at("/candidates/0/content/parts/0/text").asText();
-            content = content.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
-
+            String content = llm.chat(TIP_SYSTEM_PROMPT, "Generate today's farming tip", 0.8, 300);
             JsonNode node = objectMapper.readTree(content);
             return Map.of(
                     "titleUr", getTextSafe(node, "titleUr", "آج کی زرعی ٹپ"),
@@ -154,14 +88,58 @@ public class GeminiChatService {
                     "tipEn", getTextSafe(node, "tipEn", "Take good care of your crops"),
                     "category", getTextSafe(node, "category", "market")
             );
-
         } catch (Exception e) {
-            log.warn("Gemini tip generation failed: {}", e.getMessage());
+            log.warn("Daily tip failed ({}), using template", e.getMessage());
             return getFallbackTip();
         }
     }
 
-    // ── Fallback responses ──
+    public String[] getFarmingAdvice(String userQuery, String cropName, Map<String, Object> context) {
+        log.info("Getting farming advice | crop={} | contextKeys={}", cropName, context.keySet());
+
+        StringBuilder contextStr = new StringBuilder();
+        context.forEach((k, v) -> contextStr.append("- ").append(k).append(": ").append(v).append("\n"));
+
+        String systemPrompt = """
+                You are an experienced agricultural advisor for Pakistani farmers with 20+ years
+                of experience. You provide PRACTICAL, ACTIONABLE advice in simple language.
+
+                === Farmer's Context ===
+                %s
+
+                === Response Guidelines ===
+                1. Give SPECIFIC advice, not generic tips
+                2. Mention current prices if available in context
+                3. Consider the current season (%s)
+                4. Recommend concrete actions (e.g., "wait 2 weeks", "sell now", "irrigate daily")
+                5. Warn about common risks (weather, pests, price drops)
+                6. Keep response SHORT (2-3 sentences, farmer-friendly)
+                7. If Urdu Roman requested, use Urdu Roman script (not Devanagari)
+
+                === Response Format (JSON only) ===
+                {
+                  "urdu": "Urdu Roman advice (2-3 sentences)",
+                  "english": "English advice (2-3 sentences)",
+                  "confidence": 0.0-1.0,
+                  "actionable": true
+                }
+                """.formatted(contextStr.toString(), context.getOrDefault("season", "unknown"));
+
+        try {
+            String content = llm.chat(systemPrompt, userQuery, 0.7, 300);
+            JsonNode node = objectMapper.readTree(content);
+            String urdu = node.has("urdu") ? node.get("urdu").asText() : getFallbackAdviceUrdu();
+            String english = node.has("english") ? node.get("english").asText() : getFallbackAdviceEnglish();
+            return new String[]{urdu, english};
+        } catch (Exception e) {
+            log.warn("Farming advice failed ({}), using template", e.getMessage());
+            return new String[]{getFallbackAdviceUrdu(), getFallbackAdviceEnglish()};
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TEMPLATE FALLBACKS (last resort — always available)
+    // ══════════════════════════════════════════════════════════
 
     private String getFallbackUrdu() {
         return "یہ سمجھ نہیں آیا۔ پوچھ سکتے ہیں: 'گندم کی قیمت'، 'فصل بیچنی ہے'، یا 'والیٹ دکھاؤ'";
@@ -179,6 +157,16 @@ public class GeminiChatService {
                 "tipEn", "Wheat demand is high this week. You may get a good price.",
                 "category", "market"
         );
+    }
+
+    private String getFallbackAdviceUrdu() {
+        return "آپ کی فصل کے لیے موجودہ مارکیٹ ریٹ اور موسم کو مدنظر رکھتے ہوئے، " +
+               "مقامی منڈی میں تازہ قیمتیں چیک کریں اور مناسب وقت پر فروخت کریں۔";
+    }
+
+    private String getFallbackAdviceEnglish() {
+        return "Considering current market rates and season, check your local mandi " +
+               "for fresh prices and sell at the right time.";
     }
 
     private String getTextSafe(JsonNode node, String field, String fallback) {

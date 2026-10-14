@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.agrimax.ai.llm.HybridLlmService;
+import com.agrimax.ai.service.LanguageDetector;
 
 import java.time.LocalDate;
 import java.util.Map;
@@ -23,6 +25,8 @@ public class AiController {
 
     private final GeminiChatService geminiChatService;
     private final GeminiResponseCache geminiCache;
+    private final HybridLlmService hybridLlmService;
+    private final LanguageDetector languageDetector;
 
     // Simple daily tip cache — regenerated once per day
     private volatile Map<String, String> cachedTip = null;
@@ -88,5 +92,24 @@ public class AiController {
                 "tipCacheDate", cacheDate != null ? cacheDate.toString() : "none"
         );
         return ResponseEntity.ok(ApiResponse.success(stats, "Cache stats", "کیش معلومات"));
+    }
+
+
+    @GetMapping("/llm/status")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getLlmStatus() {
+        return ResponseEntity.ok(ApiResponse.success(
+                hybridLlmService.getStatus(),
+                "LLM status loaded",
+                "AI سروسز کی معلومات"
+        ));
+    }
+
+    @GetMapping("/language/metrics")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getLanguageMetrics() {
+        return ResponseEntity.ok(ApiResponse.success(
+                languageDetector.getMetrics(),
+                "Language metrics loaded",
+                "زبان کی معلومات"
+        ));
     }
 }

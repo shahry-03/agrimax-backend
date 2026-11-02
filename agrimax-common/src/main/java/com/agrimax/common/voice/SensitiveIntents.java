@@ -2,10 +2,6 @@ package com.agrimax.common.voice;
 
 import java.util.Set;
 
-/**
- * Central registry of voice intents that require authentication.
- * These intents will be rejected with a friendly message if the user is not logged in.
- */
 public final class SensitiveIntents {
 
     private SensitiveIntents() {}
@@ -17,7 +13,11 @@ public final class SensitiveIntents {
             "PLACE_BID",
             "CHECK_ORDER_STATUS",
             "UPDATE_PROFILE",
-            "VIEW_NOTIFICATIONS"
+            "VIEW_NOTIFICATIONS",
+            "ACCEPT_BID",
+            "COMPLETE_DEAL",
+            "CANCEL_DEAL",
+            "VIEW_MY_BIDS"         // 🆕
     );
 
     public static boolean requiresAuth(String intent) {

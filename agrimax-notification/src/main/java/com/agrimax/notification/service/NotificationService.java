@@ -41,4 +41,34 @@ public class NotificationService {
     public List<Notification> getAll(UUID userId) {
         return repository.findByUserIdOrderByCreatedAtDesc(userId);
     }
+
+    // 🆕
+    @Transactional(readOnly = true)
+    public long getUnreadCount(UUID userId) {
+        return repository.countByUserIdAndIsReadFalse(userId);
+    }
+
+    // 🆕 — single mark-as-read (scoped to user)
+    @Transactional
+    public boolean markAsRead(UUID notificationId, UUID userId) {
+        return repository.findByIdAndUserId(notificationId, userId)
+                .map(n -> {
+                    if (Boolean.TRUE.equals(n.getIsRead())) return true;
+                    n.setIsRead(true);
+                    repository.save(n);
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    // 🆕 — bulk mark-all
+    @Transactional
+    public int markAllAsRead(UUID userId) {
+        List<Notification> unread = repository
+                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId);
+        if (unread.isEmpty()) return 0;
+        unread.forEach(n -> n.setIsRead(true));
+        repository.saveAll(unread);
+        return unread.size();
+    }
 }

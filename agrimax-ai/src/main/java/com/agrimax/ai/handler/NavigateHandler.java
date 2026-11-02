@@ -2,6 +2,7 @@ package com.agrimax.ai.handler;
 
 import com.agrimax.common.voice.CommandHandler;
 import com.agrimax.common.voice.CommandResult;
+import com.agrimax.common.voice.UIAction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -10,11 +11,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Handles NAVIGATE intent — returns action command to frontend to change page.
+ * Handles NAVIGATE intent — returns a navigation action to the frontend.
  *
- * <p>User: "Market kholo" → Returns: {action: "navigate", target: "/marketplace"}</p>
+ * <p>User: "Market kholo" → Navigates to "/marketplace"</p>
  *
- * <p>The frontend's ActionExecutor reads this and calls router.push(target).</p>
+ * <p>The frontend's ActionExecutor reads the UIAction
+ * and calls router.push(target).</p>
  */
 @Slf4j
 @Component
@@ -30,6 +32,7 @@ public class NavigateHandler implements CommandHandler {
         String target = (String) parameters.get("target");
         String pageLabel = (String) parameters.getOrDefault("label", target);
 
+        // Validate navigation target
         if (target == null || target.isBlank()) {
             return CommandResult.fail(
                     "Which page do you want to open?",
@@ -39,14 +42,16 @@ public class NavigateHandler implements CommandHandler {
 
         log.info("Navigate request → {}", target);
 
+        // Prepare response data
         Map<String, Object> data = new HashMap<>();
-        data.put("action", "navigate");     // ⭐ Frontend will read this
         data.put("target", target);
         data.put("label", pageLabel);
 
-        return CommandResult.ok(
+        // Return success with navigation action
+        return CommandResult.okWithAction(
                 "Opening " + pageLabel + ".",
                 "کھول رہا ہوں " + pageLabel + "۔",
+                UIAction.navigate(target, Map.of("source", "voice")),
                 data
         );
     }

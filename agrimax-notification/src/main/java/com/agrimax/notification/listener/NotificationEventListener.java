@@ -9,6 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import com.agrimax.common.event.BidPlacedEvent;
+import com.agrimax.common.event.BidAcceptedEvent;
+import com.agrimax.common.event.DealCancelledEvent;
 
 import java.util.Map;
 
@@ -65,5 +68,52 @@ public class NotificationEventListener {
                 "آپ کی خریداری کی تصدیق ہو گئی ہے۔",
                 Map.of("event", "DEAL_COMPLETED", "dealId", event.dealId().toString())
         );
+    }
+
+    @Async
+    @EventListener
+    public void onBidPlaced(BidPlacedEvent event) {
+        log.info("Event: BidPlaced {} on post {} by {}", event.bidId(), event.postId(), event.buyerId());
+        // Notify seller
+        notificationService.send(event.sellerId(), "IN_APP",
+                "New Bid Received!", "نئی بولی موصول!",
+                "Someone placed a bid of PKR " + event.bidPrice() + " on your post.",
+                "کسی نے آپ کی پوسٹ پر " + event.bidPrice() + " روپے کی بولی لگائی ہے۔",
+                Map.of("event", "BID_PLACED",
+                        "bidId", event.bidId().toString(),
+                        "postId", event.postId().toString()));
+    }
+
+    @Async
+    @EventListener
+    public void onBidAccepted(BidAcceptedEvent event) {
+        log.info("Event: BidAccepted {} → deal {}", event.bidId(), event.dealId());
+        // Notify buyer
+        notificationService.send(event.buyerId(), "IN_APP",
+                "Bid Accepted!", "بولی قبول!",
+                "Your bid of PKR " + event.amount() + " has been accepted. Payment is held in escrow.",
+                "آپ کی " + event.amount() + " روپے کی بولی قبول ہو گئی۔ ادائیگی escrow میں محفوظ ہے۔",
+                Map.of("event", "BID_ACCEPTED",
+                        "dealId", event.dealId().toString(),
+                        "bidId", event.bidId().toString()));
+    }
+
+    @Async
+    @EventListener
+    public void onDealCancelled(DealCancelledEvent event) {
+        log.info("Event: DealCancelled {}", event.dealId());
+        String amount = event.refundedAmount().toPlainString();
+        // Notify seller
+        notificationService.send(event.sellerId(), "IN_APP",
+                "Deal Cancelled", "سودا منسوخ",
+                "Deal was cancelled. The buyer has been refunded PKR " + amount + ".",
+                "سودا منسوخ ہو گیا۔ خریدار کو " + amount + " روپے واپس کر دیے گئے۔",
+                Map.of("event", "DEAL_CANCELLED", "dealId", event.dealId().toString()));
+        // Notify buyer
+        notificationService.send(event.buyerId(), "IN_APP",
+                "Deal Cancelled — Refunded", "سودا منسوخ — رقم واپس",
+                "The deal was cancelled. PKR " + amount + " has been refunded to your wallet.",
+                "سودا منسوخ ہو گیا۔ " + amount + " روپے آپ کے والیٹ میں واپس کر دیے گئے ہیں۔",
+                Map.of("event", "DEAL_CANCELLED", "dealId", event.dealId().toString()));
     }
 }

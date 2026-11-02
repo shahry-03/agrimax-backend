@@ -21,7 +21,14 @@ public class CommandRouterService {
 
     public CommandRouterService(List<CommandHandler> handlerList) {
         this.handlers = handlerList.stream()
-                .collect(Collectors.toMap(CommandHandler::supportedIntent, Function.identity()));
+                .collect(Collectors.toMap(
+                        CommandHandler::supportedIntent,
+                        Function.identity(),
+                        (existing, replacement) -> {
+                            log.warn("Duplicate CommandHandler for intent '{}': keeping {}",
+                                    existing.supportedIntent(), existing.getClass().getSimpleName());
+                            return existing;
+                        }));
         log.info("Registered {} voice command handlers: {}", handlers.size(), handlers.keySet());
     }
 

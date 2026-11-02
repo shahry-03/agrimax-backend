@@ -1,6 +1,7 @@
 package com.agrimax.ai.service;
 
 import com.agrimax.ai.cache.GeminiResponseCache;
+import com.agrimax.ai.llm.GroqLlmProvider;
 import com.agrimax.ai.service.LanguageDetector.DetectionResult;
 import com.agrimax.common.session.ConversationSession;
 import com.agrimax.common.session.ConversationSessionManager;
@@ -31,88 +32,104 @@ public class IntentDetectionService {
     private final GeminiResponseCache cache;
     private final ConversationSessionManager sessionManager;
     private final LanguageDetector languageDetector;
+    private final GroqLlmProvider groqLlmProvider;
 
-    // ══════════════════════════════════════════════════════════
-    // SYSTEM PROMPT
-    // ══════════════════════════════════════════════════════════
     private static final String SYSTEM_PROMPT = """
-            You are AgriMax AI, an intelligent voice assistant for Pakistani farmers.
-            You help farmers with crop prices, selling crops, managing their wallet,
-            getting AI-powered farming advice, AND navigating the mobile app.
+        You are AgriMax AI, an intelligent voice assistant for Pakistani farmers.
 
-            The user may speak in ENGLISH, URDU (script), or ROMAN URDU.
-            The detected language is provided in the user message — respect it.
+        Extract:
+        1. intent — MUST be exactly one of:
 
-            Extract:
-            1. intent — MUST be exactly one of:
+           === ACTION INTENTS ===
+           LOGIN, VERIFY_OTP, CREATE_SELL_POST, GET_CROP_PRICE, VIEW_PAYMENTS,
+           VIEW_WALLET, PLACE_BID, VIEW_MY_BIDS, ACCEPT_BID, COMPLETE_DEAL, CANCEL_DEAL,
+           CHECK_ORDER_STATUS, GET_RECOMMENDATION, UPDATE_PROFILE, VIEW_NOTIFICATIONS,
 
-               === ACTION INTENTS ===
-               LOGIN, VERIFY_OTP, CREATE_SELL_POST, GET_CROP_PRICE, VIEW_PAYMENTS,
-               VIEW_WALLET, PLACE_BID, CHECK_ORDER_STATUS, GET_RECOMMENDATION,
-               UPDATE_PROFILE, VIEW_NOTIFICATIONS,
+           === NAVIGATION INTENTS ===
+           NAVIGATE, GO_BACK, HELP, UNKNOWN,
 
-               === NAVIGATION INTENTS ===
-               NAVIGATE, GO_BACK, HELP, UNKNOWN
+           === SESSION CONTROL ===
+           STOP_LISTENING
 
-            2. parameters — JSON object:
-               - LOGIN: {phone: "03001234567"}
-               - VERIFY_OTP: {otp: "1234"}
-               - CREATE_SELL_POST: {crop: "wheat", quantity: 50, unit: "kg", price: 3000}
-               - GET_CROP_PRICE: {crop: "wheat"}
-               - VIEW_WALLET / VIEW_PAYMENTS: {}
-               - GET_RECOMMENDATION: {crop: "wheat" or null,
-                   topic: "selling"|"planting"|"weather"|"pest"|"fertilizer"|"general"}
-               - NAVIGATE: {target: "/route", label: "Page Name"}
-                 • home, ghar, dashboard → /
-                 • market, marketplace, mandi → /marketplace
-                 • prices, rates → /prices
-                 • wallet, batta → /wallet
-                 • profile, account → /profile
-                 • settings → /settings
-                 • my posts → /my-posts
-               - GO_BACK: {}
-               - HELP: {}
-               - UNKNOWN: {raw_text: "original"}
+        2. parameters — JSON object:
+           - LOGIN: {phone: "03001234567"}
+           - VERIFY_OTP: {otp: "1234"}
+           - CREATE_SELL_POST: {crop: "wheat", quantity: 50, unit: "kg", price: 3000}
+           - GET_CROP_PRICE: {crop: "wheat"}
+           - VIEW_WALLET / VIEW_PAYMENTS: {}
+           - VIEW_MY_BIDS: {}
+           - PLACE_BID: {bidPrice: 3200, message: "optional"}
+             (postId is from frontend — DO NOT extract)
+           - ACCEPT_BID: {} (bidId is from frontend — DO NOT extract)
+           - COMPLETE_DEAL: {} (dealId is from frontend — DO NOT extract)
+           - CANCEL_DEAL: {} (dealId is from frontend — DO NOT extract)
+           - CHECK_ORDER_STATUS: {}
+           - UPDATE_PROFILE: {name: "Ahmed"|null, languagePref: "ur"|"en"|null}
+           - VIEW_NOTIFICATIONS: {}
+           - GET_RECOMMENDATION: {crop: "wheat"|null, topic: "selling"|"planting"|"weather"|"pest"|"fertilizer"|"general"}
+           - NAVIGATE: {target: "/route", label: "Page Name"}
+             • home, ghar → /
+             • market, marketplace, mandi → /marketplace
+             • prices, rates → /prices
+             • wallet, batta → /wallet
+             • profile → /profile
+             • my posts → /my-posts
+             • notifications → /notifications
+             • orders, deals, saude → /marketplace/deals
+           - GO_BACK: {}
+           - HELP: {}
+           - STOP_LISTENING: {}
+           - UNKNOWN: {raw_text: "original"}
 
-            3. language — "ur" or "en"
-            4. confidence — 0.0 to 1.0
+        3. language — "ur" or "en"
+        4. confidence — 0.0 to 1.0
 
-            === Urdu Crop Names (Roman) ===
-            gehu/gandum=wheat, chawal=rice, makki/maize=corn, kapas=cotton,
-            ganna=sugarcane, sarson=mustard, chana=chickpea, masoor=lentil,
-            aam=mango, aloo=potato, pyaz=onion, tamatar=tomato,
-            moong=mung bean, urad=black lentil, bajra=millet, jowar=sorghum
+        === Urdu Crop Names ===
+        gehu/gandum=wheat, chawal=rice, makki/maize=corn, kapas=cotton,
+        ganna=sugarcane, sarson=mustard, chana=chickpea, masoor=lentil,
+        aam=mango, aloo=potato, pyaz=onion, tamatar=tomato,
+        moong=mung bean, urad=black lentil, bajra=millet, jowar=sorghum
 
-            === Disambiguation ===
-            - "wallet dikhao" → VIEW_WALLET (not navigate)
-            - "wallet kholo" → NAVIGATE /wallet
-            - "gehu ki keemat" → GET_CROP_PRICE
-            - "gehu kab bechni" → GET_RECOMMENDATION topic=selling
-            - "market kholo" → NAVIGATE /marketplace
+        === Disambiguation ===
+        - "wallet dikhao" → VIEW_WALLET
+        - "wallet kholo" → NAVIGATE /wallet
+        - "gehu ki keemat" → GET_CROP_PRICE
+        - "gehu kab bechni" → GET_RECOMMENDATION topic=selling
+        - "is post pe 3200 ki bid lagao" → PLACE_BID {bidPrice: 3200}
+        - "is bid ko accept karo" → ACCEPT_BID
+        - "bid accept karo" → ACCEPT_BID
+        - "delivery ho gayi" / "paise release karo" → COMPLETE_DEAL
+        - "deal cancel karo" / "soda cancel" → CANCEL_DEAL
+        - "mera naam Ahmed hai" → UPDATE_PROFILE {name: "Ahmed"}
+        - "english mein baat karo" → UPDATE_PROFILE {languagePref: "en"}
+        - "meri notifications" → VIEW_NOTIFICATIONS
+        - "mere orders" → CHECK_ORDER_STATUS
 
-            === Rules ===
-            - Reply ONLY with valid JSON.
-            - Use English tokens for crop names and units.
-            - Preserve the user's spoken language in the "language" field.
+        === Session Control ===
+        User says "bas", "ruko", "band karo", "kaafi", "shukriya", "bye",
+        "stop", "exit", "quit", "mic band", "aur nahi" → STOP_LISTENING {}
 
-            === Examples ===
-            Input: "Meri gehu ki fasal kab bechni chahiye?"
-            Output: {"intent":"GET_RECOMMENDATION","parameters":{"crop":"wheat","topic":"selling"},"language":"ur","confidence":0.95}
+        === Rules ===
+        - Reply ONLY with valid JSON.
+        - Use English tokens for crops/units.
+        - Preserve user's language.
+        - ACCEPT_BID/COMPLETE_DEAL/CANCEL_DEAL: parameters = {} (IDs come from frontend).
 
-            Input: "When should I sell my wheat crop?"
-            Output: {"intent":"GET_RECOMMENDATION","parameters":{"crop":"wheat","topic":"selling"},"language":"en","confidence":0.95}
+        === Examples ===
+        Input: "Mujhe 50 kilo gehu 3000 mein bechna hai"
+        Output: {"intent":"CREATE_SELL_POST","parameters":{"crop":"wheat","quantity":50,"unit":"kg","price":3000},"language":"ur","confidence":0.95}
 
-            Input: "Market kholo"
-            Output: {"intent":"NAVIGATE","parameters":{"target":"/marketplace","label":"Marketplace"},"language":"ur","confidence":0.95}
+        Input: "Is bid ko accept karo"
+        Output: {"intent":"ACCEPT_BID","parameters":{},"language":"ur","confidence":0.95}
 
-            Input: "Open the wallet page"
-            Output: {"intent":"NAVIGATE","parameters":{"target":"/wallet","label":"Wallet"},"language":"en","confidence":0.95}
+        Input: "Delivery ho gayi, paise release karo"
+        Output: {"intent":"COMPLETE_DEAL","parameters":{},"language":"ur","confidence":0.95}
 
-            Input: "Mujhe 50 kilo gehu 3000 mein bechna hai"
-            Output: {"intent":"CREATE_SELL_POST","parameters":{"crop":"wheat","quantity":50,"unit":"kg","price":3000},"language":"ur","confidence":0.95}
-            """;
+        Input: "Deal cancel karo"
+        Output: {"intent":"CANCEL_DEAL","parameters":{},"language":"ur","confidence":0.95}
+        """;
 
-    // Crop map
+     // Crop map
     private static final Map<String, String> CROP_MAP = Map.ofEntries(
             Map.entry("gehu", "wheat"), Map.entry("gandum", "wheat"), Map.entry("wheat", "wheat"),
             Map.entry("chawal", "rice"), Map.entry("rice", "rice"),
@@ -165,12 +182,14 @@ public class IntentDetectionService {
             ObjectMapper objectMapper,
             GeminiResponseCache cache,
             ConversationSessionManager sessionManager,
-            LanguageDetector languageDetector) {
+            LanguageDetector languageDetector,
+            GroqLlmProvider groqLlmProvider) {
         this.model = model;
         this.objectMapper = objectMapper;
         this.cache = cache;
         this.sessionManager = sessionManager;
         this.languageDetector = languageDetector;
+        this.groqLlmProvider = groqLlmProvider;
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader("x-goog-api-key", apiKey)
@@ -181,50 +200,61 @@ public class IntentDetectionService {
     // PUBLIC API
     // ══════════════════════════════════════════════════════════
 
+    /**
+     * Backward-compatible overload for callers that do not provide a role.
+     */
     public VoiceIntent detectIntent(String transcript, String sessionId) {
-        log.info("Detecting intent for: \"{}\" (session: {})", transcript, sessionId);
+        return detectIntent(transcript, sessionId, null);
+    }
 
-        // ⭐ STEP 1: Auto-detect language from transcript
+    /**
+     * Primary role-aware intent detection API.
+     */
+    public VoiceIntent detectIntent(String transcript, String sessionId, String role) {
+        log.info("Detecting intent — transcript: \"{}\" | session: {} | role: {}",
+                transcript, sessionId, role != null ? role : "ANONYMOUS");
+
+        // STEP 1: Language detection
         DetectionResult langResult = languageDetector.detect(transcript);
-        log.info("🌐 Detected language: {} (confidence: {}, reason: {})",
+        log.info("Language: {} (confidence: {}, reason: {})",
                 langResult.language(), langResult.confidence(), langResult.reason());
 
-        // ⭐ STEP 2: Session-sticky language (once established, stick to it)
+        // STEP 2: Session-sticky language
         ConversationSession session = sessionManager.getOrCreate(sessionId);
         String establishedLang = (String) session.getContext().get(KEY_SESSION_LANG);
 
-        // Decide final language: high-confidence detection wins; otherwise use session
         String effectiveLang;
         if (langResult.confidence() >= 0.75) {
             effectiveLang = langResult.language();
-            session.getContext().put(KEY_SESSION_LANG, effectiveLang); // update sticky
+            session.getContext().put(KEY_SESSION_LANG, effectiveLang);
         } else if (establishedLang != null) {
             effectiveLang = establishedLang;
-            log.debug("Using session-established language: {}", effectiveLang);
         } else {
             effectiveLang = langResult.language();
             session.getContext().put(KEY_SESSION_LANG, effectiveLang);
         }
 
-        // ⭐ STEP 3: Multi-turn flow check (OTP/phone during LOGIN flow)
+        // STEP 3: Multi-turn flow (OTP etc.)
         VoiceIntent multiTurn = checkMultiTurnFlow(transcript, session, effectiveLang);
         if (multiTurn != null) {
-            log.info("🔗 Multi-turn flow intercepted → {}", multiTurn.intent());
+            log.info("Multi-turn flow -> {}", multiTurn.intent());
             return multiTurn;
         }
 
-        // ⭐ STEP 4: Cache check
-        String cacheKey = transcript.trim().toLowerCase();
+        // STEP 4: Role-aware cache
+        String cacheKey = (role != null ? role.toUpperCase(Locale.ROOT) + "|" : "")
+                + transcript.trim().toLowerCase(Locale.ROOT);
         VoiceIntent cached = cache.get(cacheKey);
         if (cached != null) {
-            log.info("✅ Cache HIT — skipping Gemini API call");
-            // Re-stamp with fresh language (may differ from cache)
-            return new VoiceIntent(cached.intent(), cached.parameters(), effectiveLang, cached.confidence());
+            log.info("Cache HIT");
+            return new VoiceIntent(cached.intent(), cached.parameters(),
+                    effectiveLang, cached.confidence());
         }
 
-        // ⭐ STEP 5: Gemini call
+        // STEP 5: Gemini call with role hint
         try {
-            Map<String, Object> requestBody = buildGeminiRequest(transcript, session, effectiveLang);
+            Map<String, Object> requestBody = buildGeminiRequest(
+                    transcript, session, effectiveLang, role);
 
             String responseJson = restClient.post()
                     .uri("/models/{model}:generateContent", model)
@@ -235,13 +265,12 @@ public class IntentDetectionService {
 
             VoiceIntent intent = parseGeminiResponse(responseJson);
 
-            // Override language if our detector is more confident
             if (langResult.confidence() > 0.75) {
                 intent = new VoiceIntent(intent.intent(), intent.parameters(),
                         effectiveLang, intent.confidence());
             }
 
-            log.info("✅ Gemini detected: {} (confidence: {}, lang: {})",
+            log.info("Gemini: intent={} conf={} lang={}",
                     intent.intent(), intent.confidence(), intent.language());
 
             session.addUserTurn(transcript);
@@ -251,19 +280,86 @@ public class IntentDetectionService {
             if (intent.confidence() >= 0.8 && isCacheable(intent)) {
                 cache.put(cacheKey, intent);
             }
-
             return intent;
 
         } catch (Exception e) {
-            log.warn("⚠️ Gemini unavailable ({}), using smart fallback", e.getMessage());
+            log.warn("Gemini unavailable ({}), trying Groq fallback", e.getMessage());
+
+            VoiceIntent groqFallback = tryGroqFallback(
+                    transcript, effectiveLang, role, session);
+            if (groqFallback != null) {
+                log.info("Groq fallback: {}", groqFallback.intent());
+                session.addUserTurn(transcript);
+                session.addAssistantTurn(
+                        groqFallback.intent() + ": " + groqFallback.parameters());
+                session.getContext().put(KEY_LAST_INTENT, groqFallback.intent());
+                return groqFallback;
+            }
+
+            log.warn("Groq fallback failed, using smart fallback");
             VoiceIntent fallback = smartFallback(transcript, effectiveLang);
             session.getContext().put(KEY_LAST_INTENT, fallback.intent());
             return fallback;
         }
     }
 
+    /**
+     * Backward-compatible overload for callers that only provide a transcript.
+     */
     public VoiceIntent detectIntent(String transcript) {
-        return detectIntent(transcript, "anonymous");
+        return detectIntent(transcript, "anonymous", null);
+    }
+
+    /**
+     * Groq fallback — used when the Gemini API fails.
+     * Uses a single-shot request without session history.
+     */
+    private VoiceIntent tryGroqFallback(String transcript, String detectedLang,
+                                         String role, ConversationSession session) {
+        try {
+            String langHint = "ur".equals(detectedLang)
+                    ? "\n[Detected user language: URDU — respond with language=\"ur\"]"
+                    : "\n[Detected user language: ENGLISH — respond with language=\"en\"]";
+
+            String roleHint = buildRoleHint(role);
+
+            String content = groqLlmProvider.chat(
+                    SYSTEM_PROMPT + langHint + roleHint,
+                    transcript,
+                    0.05,
+                    350
+            );
+
+            content = content
+                    .replaceAll("```json\\s*", "")
+                    .replaceAll("```\\s*", "")
+                    .trim();
+
+            // Apply the same JSON cleanup used for Gemini responses.
+            content = content.replaceAll("(\\d)\\.([,}\\]])", "$1.0$2");
+            content = content.replaceAll("(\\d+\\.\\d+)\\.", "$1");
+            content = content.replaceAll(":(\\.\\d)", ":0$1");
+
+            JsonNode intentNode = objectMapper.readTree(content);
+
+            String intent = intentNode.path("intent").asText("UNKNOWN");
+            Map<String, Object> params = intentNode.has("parameters")
+                    && intentNode.get("parameters").isObject()
+                    ? objectMapper.convertValue(intentNode.get("parameters"), HashMap.class)
+                    : new HashMap<>();
+            String language = intentNode.path("language").asText(detectedLang);
+            double confidence = intentNode.path("confidence").asDouble(0.75);
+
+            if (intent.isBlank()) {
+                throw new IllegalArgumentException("Groq response did not contain a valid intent");
+            }
+
+            return new VoiceIntent(intent, params, language, confidence);
+
+        } catch (Exception ex) {
+            log.warn("Groq fallback failed: {}", ex.getMessage());
+            return null;
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -315,15 +411,22 @@ public class IntentDetectionService {
     // GEMINI REQUEST/RESPONSE
     // ══════════════════════════════════════════════════════════
 
-    private Map<String, Object> buildGeminiRequest(String transcript, ConversationSession session, String detectedLang) {
-        // Pass detected language to Gemini for context
+    private Map<String, Object> buildGeminiRequest(
+            String transcript,
+            ConversationSession session,
+            String detectedLang,
+            String role) {
+
         String langHint = "ur".equals(detectedLang)
                 ? "\n[Detected user language: URDU — respond with language=\"ur\"]"
                 : "\n[Detected user language: ENGLISH — respond with language=\"en\"]";
 
+        String roleHint = buildRoleHint(role);
+
         return Map.of(
                 "system_instruction", Map.of(
-                        "parts", List.of(Map.of("text", SYSTEM_PROMPT + langHint))
+                        "parts", List.of(Map.of(
+                                "text", SYSTEM_PROMPT + langHint + roleHint))
                 ),
                 "contents", session.buildContents(transcript),
                 "generationConfig", Map.of(
@@ -332,6 +435,54 @@ public class IntentDetectionService {
                         "responseMimeType", "application/json"
                 )
         );
+    }
+
+    /**
+     * Role-specific guidance appended to the system prompt.
+     */
+    private String buildRoleHint(String role) {
+        if (role == null || role.isBlank()) {
+            return """
+
+                    ═══ USER ROLE ═══
+                    CURRENT USER: ANONYMOUS (not logged in)
+                    Allowed intents: NAVIGATE, HELP, GET_CROP_PRICE, GET_RECOMMENDATION,
+                    LOGIN, VERIFY_OTP, GO_BACK, STOP_LISTENING, UNKNOWN.
+                    For anything that needs authentication (bid, sell, wallet, notifications, etc.),
+                    return the correct intent — the handler will prompt the user to log in.
+                    """;
+        }
+
+        return switch (role.toUpperCase(Locale.ROOT)) {
+            case "FARMER" -> """
+
+                    ═══ USER ROLE ═══
+                    CURRENT USER: FARMER (seller)
+                    Preferred intents: GET_CROP_PRICE, CREATE_SELL_POST, ACCEPT_BID,
+                    VIEW_WALLET, VIEW_PAYMENTS, CHECK_ORDER_STATUS,
+                    GET_RECOMMENDATION, VIEW_NOTIFICATIONS.
+                    Disallowed: PLACE_BID (farmers don't bid — they sell), VIEW_MY_BIDS.
+                    If the user says "bid lagao", return PLACE_BID; the handler will
+                    reject it with a friendly role error and suggest using sell instead.
+                    """;
+            case "BUYER" -> """
+
+                    ═══ USER ROLE ═══
+                    CURRENT USER: BUYER (purchaser)
+                    Preferred intents: NAVIGATE to /marketplace, PLACE_BID, VIEW_MY_BIDS,
+                    VIEW_WALLET, VIEW_PAYMENTS, CHECK_ORDER_STATUS, GET_CROP_PRICE,
+                    COMPLETE_DEAL, CANCEL_DEAL.
+                    Disallowed: CREATE_SELL_POST (farmers only), ACCEPT_BID (seller-only).
+                    If the user says "bechna hai", return CREATE_SELL_POST; the handler
+                    will reject it with a friendly role error.
+                    """;
+            case "ADMIN" -> """
+
+                    ═══ USER ROLE ═══
+                    CURRENT USER: ADMIN — full access.
+                    """;
+            default -> "";
+        };
     }
 
     @SuppressWarnings("unchecked")
@@ -397,6 +548,25 @@ public class IntentDetectionService {
             return new VoiceIntent("VERIFY_OTP", params, lang, 0.85);
         }
 
+        // COMPLETE_DEAL — check first (specific phrases)
+        if (matches(lower, "delivery ho gayi", "delivery done", "deal complete",
+                    "paise release", "payment release", "soda mukammal",
+                    "deal mukammal karo", "complete the deal")) {
+            return new VoiceIntent("COMPLETE_DEAL", Map.of(), lang, 0.88);
+        }
+
+        // CANCEL_DEAL
+        if (matches(lower, "cancel deal", "deal cancel", "soda cancel",
+                    "soda rad", "deal rad", "deal wapas", "cancel the deal")) {
+            return new VoiceIntent("CANCEL_DEAL", Map.of(), lang, 0.88);
+        }
+
+        // ACCEPT_BID
+        if (matches(lower, "bid accept", "accept bid", "bid manzoor",
+                    "accept kar", "bid qabool", "bid qabool karo")) {
+            return new VoiceIntent("ACCEPT_BID", Map.of(), lang, 0.88);
+        }
+
         // GET_RECOMMENDATION
         if (matches(lower, "recommend", "advice", "salah", "mashwara",
                     "kab bechni", "kab bechoon", "when should i sell",
@@ -442,6 +612,13 @@ public class IntentDetectionService {
         if (matches(lower, "wallet", "balance", "paisa kitna", "paisay", "batta",
                     "paisa dikhao", "mera paisa")) {
             return new VoiceIntent("VIEW_WALLET", Map.of(), lang, 0.85);
+        }
+
+        // VIEW_MY_BIDS (buyer-only — check before generic payment/history phrases)
+        if (matches(lower, "meri bids", "my bids", "mere bids", "mera bid",
+                    "my bid", "bids dikhao", "bid history", "bid list",
+                    "kitni bids", "bids kahan")) {
+            return new VoiceIntent("VIEW_MY_BIDS", Map.of(), lang, 0.88);
         }
 
         // VIEW_PAYMENTS

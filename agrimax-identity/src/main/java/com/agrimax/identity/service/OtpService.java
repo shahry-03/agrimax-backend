@@ -8,25 +8,29 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.security.SecureRandom;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Mock OTP service — logs OTP to console instead of sending SMS.
- * Replace with real SMS gateway (Twilio, Zong API) for production.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OtpService {
 
+    private static final int MAX_FAILED_ATTEMPTS = 3;
+
     private final OtpTokenRepository otpTokenRepository;
     private final SecureRandom random = new SecureRandom();
 
+    /** In-memory failed attempt counter per phone. */
+    private final Map<String, AtomicInteger> failedAttempts = new ConcurrentHashMap<>();
+
     @Transactional
     public OtpToken generateAndSendOtp(User user) {
-        String otpCode = String.format("%06d", random.nextInt(999999));
+        String otpCode = String.format("%06d", random.nextInt(1_000_000));
 
         OtpToken otpToken = OtpToken.builder()
                 .user(user)
@@ -37,7 +41,9 @@ public class OtpService {
 
         otpToken = otpTokenRepository.save(otpToken);
 
-        // ── MOCK: Log OTP instead of sending SMS ──
+        // Reset failed attempts on new OTP
+        failedAttempts.remove(user.getPhoneNumber());
+
         log.info("═══════════════════════════════════════");
         log.info("  📱 OTP for {}: {}", user.getPhoneNumber(), otpCode);
         log.info("═══════════════════════════════════════");
@@ -47,7 +53,17 @@ public class OtpService {
 
     @Transactional
     public boolean verifyOtp(String phoneNumber, String otpCode) {
-        return otpTokenRepository
+        // 🔒 Brute-force guard
+        AtomicInteger attempts = failedAttempts.computeIfAbsent(
+                phoneNumber, k -> new AtomicInteger(0));
+
+        if (attempts.get() >= MAX_FAILED_ATTEMPTS) {
+            log.warn("🚫 OTP brute-force blocked for phone: {} ({} failures)",
+                    phoneNumber, attempts.get());
+            return false;
+        }
+
+        boolean valid = otpTokenRepository
                 .findTopByUser_PhoneNumberAndVerifiedFalseOrderByCreatedAtDesc(phoneNumber)
                 .filter(token -> token.getExpiresAt().isAfter(Instant.now()))
                 .filter(token -> token.getOtpCode().equals(otpCode))
@@ -57,5 +73,14 @@ public class OtpService {
                     return true;
                 })
                 .orElse(false);
+
+        if (valid) {
+            failedAttempts.remove(phoneNumber);   // reset on success
+        } else {
+            int count = attempts.incrementAndGet();
+            log.warn("❌ Failed OTP attempt #{} for phone: {}", count, phoneNumber);
+        }
+
+        return valid;
     }
 }

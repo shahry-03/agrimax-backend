@@ -31,15 +31,34 @@ public class UnknownIntentHandler implements CommandHandler {
     @Override
     public CommandResult handle(Map<String, Object> parameters, UUID userId) {
         String rawText = (String) parameters.getOrDefault("raw_text", "");
+
+        // Get sessionId from parameters, with userId fallback
+        String sessionId = (String) parameters.get("sessionId");
+
+        if (sessionId == null) {
+            sessionId = userId != null
+                    ? userId.toString()
+                    : "anonymous";
+        }
+
         log.info("Handling UNKNOWN intent for text: \"{}\"", rawText);
 
-        String sessionId = userId != null ? userId.toString() : "anonymous";
-
         try {
-            String[] response = geminiChatService.getHelpResponse(rawText, sessionId);
-            return CommandResult.ok(response[1], response[0]); // ok(english, urdu)
+            String[] response = geminiChatService.getHelpResponse(
+                    rawText,
+                    sessionId
+            );
+
+            // Success: No navigation action required
+            return CommandResult.ok(
+                    response[1],
+                    response[0]
+            );
+
         } catch (Exception e) {
             log.warn("Gemini help response failed: {}", e.getMessage());
+
+            // Fallback response
             return CommandResult.ok(
                     "I didn't understand that. Try: 'wheat price', 'sell crop', or 'my wallet'",
                     "یہ سمجھ نہیں آیا۔ کوشش کریں: 'گندم کی قیمت'، 'فصل بیچنی ہے'، یا 'والیٹ دکھاؤ'"

@@ -1,11 +1,13 @@
+
 server:
   port: 8080
 
 spring:
   application:
     name: agrimax-backend
+
   config:
-    import: optional:file:.env[.properties]    # Yeh nayi line add karo
+    import: optional:file:.env[.properties]
 
   servlet:
     multipart:
@@ -39,7 +41,23 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  # Async task executor (for @Async event listeners and @Scheduled cleanup)
+  # Mail Configuration
+  mail:
+    host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+  # Async task executor
   task:
     execution:
       pool:
@@ -49,13 +67,16 @@ spring:
       pool:
         size: 2
 
-# ── AgriMax Custom Configuration ──
+# AgriMax Custom Configuration
 agrimax:
+
+  # Existing JWT Configuration
   jwt:
     secret: ${JWT_SECRET}
-    access-token-expiry-ms: 86400000     # 24 hours
-    refresh-token-expiry-ms: 604800000   # 7 days
+    access-token-expiry-ms: 86400000
+    refresh-token-expiry-ms: 604800000
 
+  # Gemini AI
   ai:
     gemini:
       api-key: ${GEMINI_API_KEY}
@@ -63,37 +84,116 @@ agrimax:
       base-url: https://generativelanguage.googleapis.com/v1beta
       enabled: true
 
-    # ── Groq LLM (Text generation — for hybrid fallback) ──
+  # Groq LLM
+  groq:
+    llm:
+      enabled: true
+      api-key: ${GROQ_API_KEY}
+      base-url: https://api.groq.com/openai/v1
+      model: qwen/qwen3.8-27b
+
+  # Whisper Speech-to-Text
+  whisper:
+    max-audio-size-mb: 25
+
     groq:
-      llm:
-        enabled: true
-        api-key: ${GROQ_API_KEY}
-        base-url: https://api.groq.com/openai/v1
-        model: qwen/qwen3.8-27b   # Best open model on Groq
+      enabled: true
+      api-key: ${GROQ_API_KEY}
+      base-url: https://api.groq.com/openai/v1
+      model: whisper-large-v3-turbo
 
-    # ── Whisper Speech-to-Text (Multi-Provider) ──
-    whisper:
-      max-audio-size-mb: 25
+    openai:
+      enabled: false
+      api-key: ${OPENAI_API_KEY:}
+      base-url: https://api.openai.com/v1
+      model: whisper-1
 
-      groq:
-        enabled: true
-        api-key: ${GROQ_API_KEY}
-        base-url: https://api.groq.com/openai/v1
-        model: whisper-large-v3-turbo
+  # Text-to-Speech
+  tts:
+    enabled: true
+    default-voice-ur: ur-PK-UzmaNeural
+    default-voice-en: en-US-JennyNeural
+    default-speed: 1.0
 
-      openai:
-        enabled: false              # Turn on if you have OpenAI key
-        api-key: ${OPENAI_API_KEY:}
-        base-url: https://api.openai.com/v1
-        model: whisper-1
+    cache:
+      max-entries: 500
+      ttl-minutes: 60
 
+    azure:
+      enabled: true
+      api-key: ${AZURE_TTS_API_KEY:}
+      region: ${AZURE_TTS_REGION:eastus}
+      output-format: audio-24khz-48kbitrate-mono-mp3
 
-
-
+  # Voice Configuration
   voice:
-    # Mock mode - accepts text transcripts directly instead of audio
     mock-stt: true
 
+  # CORS Configuration
   cors:
-    # Comma-separated list of allowed origins — override in prod via env var
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173}
+
+  # Identity Configuration
+  identity:
+
+    # Refresh Token Cookie
+    cookie:
+      refresh-token-name: refresh_token
+      secure: false
+      http-only: true
+      same-site: Lax
+      domain: ""
+
+    # Login Lockout
+    lockout:
+      enabled: true
+      max-failed-attempts: 5
+      lockout-duration-minutes: 15
+      reset-counter-after-minutes: 30
+
+    # Initial Admin Bootstrap
+    bootstrap:
+      admin:
+        enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
+        email: ${ADMIN_EMAIL:admin@agrimax.local}
+        password: ${ADMIN_PASSWORD:Admin@1234}
+        name: System Administrator
+
+agrimax:
+  # ... existing ...
+
+  identity:
+    cookie:
+      refresh-token-name: refresh_token
+      secure: false
+      http-only: true
+      same-site: Lax
+      domain: ""
+
+    lockout:
+      enabled: true
+      max-failed-attempts: 5
+      lockout-duration-minutes: 15
+      reset-counter-after-minutes: 30
+
+    bootstrap:
+      admin:
+        enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
+        email: ${ADMIN_EMAIL:admin@agrimax.local}
+        password: ${ADMIN_PASSWORD:Admin@1234}
+        name: System Administrator
+
+    # 🆕 email — used by EmailService
+    email:
+      from: ${MAIL_FROM:noreply@agrimax.local}
+      from-name: AgriMax
+      frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+
+    # 🆕 2FA — will be used in Phase B4
+    two-factor:
+      issuer: AgriMax
+      backup-code-count: 10
+
+  # 🆕 rate limit global toggle
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}

@@ -4,6 +4,7 @@ import com.agrimax.common.session.ConversationSession;
 import com.agrimax.common.session.ConversationSessionManager;
 import com.agrimax.common.voice.CommandHandler;
 import com.agrimax.common.voice.CommandResult;
+import com.agrimax.common.voice.UIAction;
 import com.agrimax.identity.dto.AuthResponse;
 import com.agrimax.identity.dto.VerifyOtpRequest;
 import com.agrimax.identity.service.AuthService;
@@ -33,35 +34,37 @@ public class VerifyOtpCommandHandler implements CommandHandler {
         String sessionId = (String) parameters.get("sessionId");
 
         if (otp == null || otp.isBlank()) {
-            return CommandResult.fail(
+            return CommandResult.failWithAction(
                     "Please tell me the OTP you received.",
-                    "براہ کرم موصولہ OTP بتائیں۔"
+                    "براہ کرم موصولہ OTP بتائیں۔",
+                    UIAction.navigate("/login", Map.of("step", "otp"))
             );
         }
 
-        // Session se phone number nikaalo
         ConversationSession session = sessionManager.getOrCreate(sessionId);
         String phone = (String) session.getContext().get("phoneNumber");
 
         if (phone == null) {
-            return CommandResult.fail(
+            return CommandResult.failWithAction(
                     "Session expired. Please tell me your phone number again.",
-                    "سیشن ختم ہو گیا۔ براہ کرم دوبارہ اپنا فون نمبر بتائیں۔"
+                    "سیشن ختم ہو گیا۔ براہ کرم دوبارہ اپنا فون نمبر بتائیں۔",
+                    UIAction.navigate("/login", Map.of("step", "phone"))
             );
         }
 
         try {
-            // AuthService se OTP verify karwao
             AuthResponse response = authService.verifyOtp(new VerifyOtpRequest(phone, otp));
             log.info("Voice login successful for phone: {}", phone);
 
-            // Session clear kar do taaki phone number na rahe
             sessionManager.clearSession(sessionId);
 
-            // Frontend ko token wapas bhejo
-            return CommandResult.ok(
+            return CommandResult.okWithAction(
                     "Login successful! Welcome to AgriMax.",
                     "لاگ ان کامیاب! ایگری میکس میں خوش آمدید۔",
+                    UIAction.navigate("/", Map.of(
+                            "loginSuccess", true,
+                            "userId", response.userId().toString()
+                    )),
                     Map.of(
                             "accessToken", response.accessToken(),
                             "refreshToken", response.refreshToken(),
@@ -71,9 +74,10 @@ public class VerifyOtpCommandHandler implements CommandHandler {
             );
         } catch (Exception e) {
             log.warn("OTP verification failed for phone {}: {}", phone, e.getMessage());
-            return CommandResult.fail(
+            return CommandResult.failWithAction(
                     "Invalid or expired OTP. Please try again.",
-                    "غلط یا ختم شدہ OTP۔ دوبارہ کوشش کریں۔"
+                    "غلط یا ختم شدہ OTP۔ دوبارہ کوشش کریں۔",
+                    UIAction.navigate("/login", Map.of("step", "otp"))
             );
         }
     }

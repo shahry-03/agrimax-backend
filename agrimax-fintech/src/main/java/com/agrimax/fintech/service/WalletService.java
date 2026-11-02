@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.agrimax.common.exception.BadRequestException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -63,5 +64,28 @@ public class WalletService {
                             Wallet.builder().userId(userId).build()
                     );
                 });
+    }
+
+    @Transactional
+    public Transaction debit(UUID userId, BigDecimal amount, String description,
+                            UUID refId, String refType) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Debit amount must be greater than 0");
+        }
+
+        Wallet wallet = getWallet(userId);
+
+        if (wallet.getBalance().compareTo(amount) < 0) {
+            throw new BadRequestException(
+                    "Insufficient balance. Available: " + wallet.getBalance() + ", needed: " + amount);
+        }
+
+        wallet.setBalance(wallet.getBalance().subtract(amount));
+        walletRepository.save(wallet);
+
+        return transactionRepository.save(Transaction.builder()
+                .wallet(wallet).type("DEBIT").amount(amount)
+                .description(description).referenceId(refId).referenceType(refType)
+                .build());
     }
 }

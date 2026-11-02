@@ -5,6 +5,7 @@ import com.agrimax.catalog.entity.CropPrice;
 import com.agrimax.catalog.service.CropService;
 import com.agrimax.common.voice.CommandHandler;
 import com.agrimax.common.voice.CommandResult;
+import com.agrimax.common.voice.UIAction;
 import com.agrimax.ai.service.GeminiChatService;
 import com.agrimax.marketplace.service.SellPostService;
 import lombok.RequiredArgsConstructor;
@@ -68,13 +69,25 @@ public class RecommendationHandler implements CommandHandler {
             data.put("adviceEn", response[1]);
             data.put("adviceUr", response[0]);
 
-            return CommandResult.ok(response[1], response[0], data);
+            // Success: Return advice with navigation action
+            return CommandResult.okWithAction(
+                    response[1],
+                    response[0],
+                    UIAction.navigate("/advice", Map.of(
+                            "crop", cropName != null ? cropName : "",
+                            "topic", topic
+                    )),
+                    data
+            );
 
         } catch (Exception e) {
             log.error("Farming advice failed: {}", e.getMessage(), e);
-            return CommandResult.fail(
+
+            // Exception: Navigate to advice page
+            return CommandResult.failWithAction(
                     "Could not generate advice right now. Please try again.",
-                    "ابھی مشورہ نہیں دے سکتا۔ دوبارہ کوشش کریں۔"
+                    "ابھی مشورہ نہیں دے سکتا۔ دوبارہ کوشش کریں۔",
+                    UIAction.navigate("/advice")
             );
         }
     }
@@ -99,7 +112,9 @@ public class RecommendationHandler implements CommandHandler {
                 context.put("cropCategory", crop.getCategory());
                 context.put("cropUnit", crop.getUnit());
 
-                Optional<CropPrice> latestPrice = cropService.getLatestPrice(crop.getId());
+                Optional<CropPrice> latestPrice =
+                        cropService.getLatestPrice(crop.getId());
+
                 latestPrice.ifPresent(price -> {
                     context.put("currentMinPrice", price.getMinPrice());
                     context.put("currentMaxPrice", price.getMaxPrice());
@@ -107,6 +122,7 @@ public class RecommendationHandler implements CommandHandler {
                     context.put("marketName", price.getMarketName());
                     context.put("priceDate", price.getPriceDate().toString());
                 });
+
             } catch (Exception e) {
                 log.debug("Could not load crop context: {}", e.getMessage());
             }
@@ -117,9 +133,11 @@ public class RecommendationHandler implements CommandHandler {
             try {
                 List<?> userPosts = sellPostService.getPostsBySeller(userId);
                 context.put("activePostsCount", userPosts.size());
+
                 if (!userPosts.isEmpty()) {
                     context.put("hasActiveListings", true);
                 }
+
             } catch (Exception e) {
                 log.debug("Could not load user posts: {}", e.getMessage());
             }
@@ -131,18 +149,29 @@ public class RecommendationHandler implements CommandHandler {
     /** Simple season detection for Pakistan climate. */
     private String detectSeason() {
         int month = java.time.LocalDate.now().getMonthValue();
+
         if (month >= 3 && month <= 5) return "Spring (Rabi harvest)";
         if (month >= 6 && month <= 9) return "Summer/Monsoon (Kharif)";
         if (month >= 10 && month <= 11) return "Autumn (Rabi planting)";
+
         return "Winter (Rabi growth)";
     }
 
-    private String buildUserQuery(String cropName, String topic, Map<String, Object> context) {
+    private String buildUserQuery(
+            String cropName,
+            String topic,
+            Map<String, Object> context
+    ) {
         StringBuilder sb = new StringBuilder();
+
         if (cropName != null) {
-            sb.append("Farmer is asking about ").append(cropName).append(". ");
+            sb.append("Farmer is asking about ")
+                    .append(cropName)
+                    .append(". ");
         }
+
         sb.append("Topic: ").append(topic).append(". ");
+
         return sb.toString();
     }
 

@@ -17,7 +17,7 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/send-otp")
+    @PostMapping({"/send-otp", "/farmer/send-otp"})
     public ResponseEntity<ApiResponse<Void>> sendOtp(@Valid @RequestBody SendOtpRequest request) {
         authService.sendOtp(request);
         return ResponseEntity.ok(
@@ -25,7 +25,7 @@ public class AuthController {
         );
     }
 
-    @PostMapping("/verify-otp")
+    @PostMapping({"/verify-otp", "/farmer/verify-otp"})
     public ResponseEntity<ApiResponse<AuthResponse>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
         AuthResponse response = authService.verifyOtp(request);
         return ResponseEntity.ok(

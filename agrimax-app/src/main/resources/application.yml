@@ -1,4 +1,3 @@
-
 server:
   port: 8080
 
@@ -31,17 +30,16 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
-    open-in-view: false
+    open-in-view: true    # ⚡ FIX: true karo — LAZY serialization works during response
+                          #    (production me DTO projections use karna better hai)
 
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  # Mail Configuration
   mail:
     host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
     port: ${MAIL_PORT:587}
@@ -57,7 +55,6 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
-  # Async task executor
   task:
     execution:
       pool:
@@ -67,101 +64,69 @@ spring:
       pool:
         size: 2
 
-# AgriMax Custom Configuration
+# ═══════════════════════════════════════════════════════════
+# AGRIMAX CUSTOM CONFIGURATION (MERGED)
+# ═══════════════════════════════════════════════════════════
 agrimax:
-
-  # Existing JWT Configuration
+  # ── JWT ──
   jwt:
     secret: ${JWT_SECRET}
     access-token-expiry-ms: 86400000
     refresh-token-expiry-ms: 604800000
 
-  # Gemini AI
+  # ── AI (Gemini, Groq, Whisper, TTS) ──
   ai:
     gemini:
       api-key: ${GEMINI_API_KEY}
-      model: gemini-3.6-flash
+      model: gemini-2.5-flash
       base-url: https://generativelanguage.googleapis.com/v1beta
       enabled: true
 
-  # Groq LLM
-  groq:
-    llm:
-      enabled: true
-      api-key: ${GROQ_API_KEY}
-      base-url: https://api.groq.com/openai/v1
-      model: qwen/qwen3.8-27b
-
-  # Whisper Speech-to-Text
-  whisper:
-    max-audio-size-mb: 25
-
     groq:
+      llm:
+        enabled: true
+        api-key: ${GROQ_API_KEY}
+        base-url: https://api.groq.com/openai/v1
+        # ⚡ Note: agar 404 aaye to https://console.groq.com/playground
+        #    pe available model check karo. Koi na mile to fallback works.
+        model: llama-3.3-70b-versatile
+
+    whisper:
+      max-audio-size-mb: 25
+      groq:
+        enabled: true
+        api-key: ${GROQ_API_KEY}
+        base-url: https://api.groq.com/openai/v1
+        model: whisper-large-v3-turbo
+      openai:
+        enabled: false
+        api-key: ${OPENAI_API_KEY:}
+        base-url: https://api.openai.com/v1
+        model: whisper-1
+
+    tts:
       enabled: true
-      api-key: ${GROQ_API_KEY}
-      base-url: https://api.groq.com/openai/v1
-      model: whisper-large-v3-turbo
+      default-voice-ur: ur-PK-UzmaNeural
+      default-voice-en: en-US-JennyNeural
+      default-speed: 1.0
+      cache:
+        max-entries: 500
+        ttl-minutes: 60
+      azure:
+        enabled: true
+        api-key: ${AZURE_TTS_API_KEY:}
+        region: ${AZURE_TTS_REGION:eastus}
+        output-format: audio-24khz-48kbitrate-mono-mp3
 
-    openai:
-      enabled: false
-      api-key: ${OPENAI_API_KEY:}
-      base-url: https://api.openai.com/v1
-      model: whisper-1
-
-  # Text-to-Speech
-  tts:
-    enabled: true
-    default-voice-ur: ur-PK-UzmaNeural
-    default-voice-en: en-US-JennyNeural
-    default-speed: 1.0
-
-    cache:
-      max-entries: 500
-      ttl-minutes: 60
-
-    azure:
-      enabled: true
-      api-key: ${AZURE_TTS_API_KEY:}
-      region: ${AZURE_TTS_REGION:eastus}
-      output-format: audio-24khz-48kbitrate-mono-mp3
-
-  # Voice Configuration
+  # ── Voice ──
   voice:
     mock-stt: true
 
-  # CORS Configuration
+  # ── CORS ──
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173}
 
-  # Identity Configuration
-  identity:
-
-    # Refresh Token Cookie
-    cookie:
-      refresh-token-name: refresh_token
-      secure: false
-      http-only: true
-      same-site: Lax
-      domain: ""
-
-    # Login Lockout
-    lockout:
-      enabled: true
-      max-failed-attempts: 5
-      lockout-duration-minutes: 15
-      reset-counter-after-minutes: 30
-
-    # Initial Admin Bootstrap
-    bootstrap:
-      admin:
-        enabled: ${ADMIN_BOOTSTRAP_ENABLED:true}
-        email: ${ADMIN_EMAIL:admin@agrimax.local}
-        password: ${ADMIN_PASSWORD:Admin@1234}
-        name: System Administrator
-
-agrimax:
-  # ... existing ...
-
+  # ── Identity & Auth ──
   identity:
     cookie:
       refresh-token-name: refresh_token
@@ -183,17 +148,15 @@ agrimax:
         password: ${ADMIN_PASSWORD:Admin@1234}
         name: System Administrator
 
-    # 🆕 email — used by EmailService
     email:
       from: ${MAIL_FROM:noreply@agrimax.local}
       from-name: AgriMax
       frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
 
-    # 🆕 2FA — will be used in Phase B4
     two-factor:
       issuer: AgriMax
       backup-code-count: 10
 
-  # 🆕 rate limit global toggle
+  # ── Rate Limit ──
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}

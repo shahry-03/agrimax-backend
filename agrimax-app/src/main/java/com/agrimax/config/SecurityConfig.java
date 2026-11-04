@@ -38,6 +38,7 @@ public class SecurityConfig {
                         // ── Public endpoints ──
                         .requestMatchers("/api/v1/auth/**").permitAll()          // farmer + buyer auth
                         .requestMatchers("/api/v1/voice/**").permitAll()         // voice pipeline (role check inside)
+                        .requestMatchers("/api/v1/dev/users/verify-email").permitAll()
                         .requestMatchers("/ws/**").permitAll()                    // websocket
                         .requestMatchers("/api/v1/crops/public/**").permitAll()
                         .requestMatchers("/api/v1/ai/tip").permitAll()

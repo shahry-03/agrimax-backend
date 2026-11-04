@@ -1,5 +1,6 @@
 package com.agrimax.marketplace.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -14,12 +15,14 @@ public class Deal {
     @Id @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "post_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private SellPost post;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "bid_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Bid bid;
 
     @Column(name = "seller_id", nullable = false) private UUID sellerId;

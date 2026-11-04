@@ -521,6 +521,14 @@ public class IntentDetectionService {
         String lower = transcript.toLowerCase().trim();
         String lang = detectedLang != null ? detectedLang : "ur";
 
+        // ⚡ STOP_LISTENING — HIGHEST PRIORITY (before everything else)
+        if (matches(lower, "stop", "ruko", "bas", "band karo", "band kar",
+                    "kaafi hai", "kaafi", "shukriya", "bye", "goodbye",
+                    "exit", "quit", "enough", "that's it", "mic band",
+                    "aur nahi", "sunna nahi", "bus karo")) {
+            return new VoiceIntent("STOP_LISTENING", Map.of(), lang, 0.90);
+        }
+
         // HELP
         if (matches(lower, "help", "madad", "kya kar sakte", "what can you do",
                     "commands", "kya kya kar")) {
